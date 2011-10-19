@@ -34,8 +34,7 @@ function handleCompileLessFileRequest (req, res) {
                 if (err) { throw err; }
                 compileLessFile(res, data, lessFilePath);
             } catch (err) {
-                reqErr(res, err, "FILE READ ERROR: " + err.message);
-                return;
+                return reqErr(res, err, "FILE READ ERROR: " + err.message);
             }
         });
 }
@@ -58,10 +57,9 @@ function compileLessFile(res, data, lessFilePath) {
                 var compiledData = tree.toCSS();
                 writeCompiledOutputToCssFile(res, lessFilePath.replace(".less", ".css"), compiledData);
             } catch (err) {
-                reqErr(res, err, "LESS PARSER ERROR: Line " + err.line + ', ' + err.message + '. File: ' + lessFilePath);
                 // Also pretty print
                 less.writeError(err);
-                return;
+                return reqErr(res, err, "LESS PARSER ERROR: Line " + err.line + ', ' + err.message + '. File: ' + lessFilePath);
             }
         });
 }
@@ -77,8 +75,7 @@ function writeCompiledOutputToCssFile (res, path, content) {
                 res.writeHead(200, {'Content-Type': 'text/plain'});
                 res.end("LESS compilation Success! \n");
             } catch (err) {
-                reqErr(res, err, "FILE WRITE ERROR: " + err.message);
-                return;
+                return reqErr(res, err, "FILE WRITE ERROR: " + err.message);
             }
         });
 }
@@ -93,7 +90,7 @@ function getFilePathFromRequest (req) {
  */
 function reqErr(res, err, msg) {
     res.writeHead(400, {'Content-Type': 'text/plain'});
-    res.end(msg + "\n");
+    res.end("[" + new Date() + "] " + msg + "\n");
     console.log(msg);
     return;
 }
