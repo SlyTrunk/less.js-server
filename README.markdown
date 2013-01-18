@@ -10,6 +10,6 @@ Usage
     LESS Server running at http://127.0.0.1:8000/
 
     // Make a request to the server
-    $ curl "http://127.0.0.1:8000/?lessFilePath=test.less&cssFilePath=test.css&paths=%2Fcss
+    $ curl "http://127.0.0.1:8000/?lessFilePath=%2Fhome%2Fbdalziel%2FcontestCarousel.less&cssFilePath=%2Fhome%2Fbdalziel%2FcontestCarousel.css&paths=%2Fhome%2Fbdalziel%2F
 
     // Magic!
