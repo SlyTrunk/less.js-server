@@ -23,22 +23,25 @@ http.createServer(function (req, res) {
         handleCompileLessFileRequest (req, res);
     }).listen(port, ip);
 console.log('LESS Server running at http://' + ip + ':' + port + '/');
+console.log('LESS version: "' + less.version + '"');
 
 function handleCompileLessFileRequest (req, res) {
 
     var lessFilePath = getLessFilePathFromRequest(req);
     var cssFilePath  = getCssFilePathFromRequest(req);
     var paths        = getPathsFromRequest(req);
+    var compileToFile = (cssFilePath != '');
 
-    console.log("LESS File: " + lessFilePath);
-    console.log("CSS File:  " + cssFilePath);
+    console.log("Request URL: " + req.url);
+    console.log("LESS File:   " + lessFilePath);
+    console.log("CSS File:    " + cssFilePath);
 
     fs.readFile(lessFilePath, 'utf8', function (err, lessFileContents) {
             if (err) {
                 less.writeError(err);
                 return reqErr(res, err, "LESS FILE READ ERROR: Line " + err.line + ', ' + err.message + '. File: ' + lessFilePath);
             }
-            compileLessFile(res, lessFileContents, lessFilePath, cssFilePath, paths);
+            compileLessFile(res, lessFileContents, lessFilePath, cssFilePath, paths, compileToFile);
         });
 }
 
@@ -46,8 +49,9 @@ function handleCompileLessFileRequest (req, res) {
  * Delegates to less.js to compile the requested file.
  * exceptions are caught and the request is closed following apropriate messaging
  */
-function compileLessFile(res, data, lessFilePath, cssFilePath, paths) {
+function compileLessFile(res, data, lessFilePath, cssFilePath, paths, compileToFile) {
 
+    //console.log("PATHS: " + paths.split(','));
     var parser = new(less.Parser)({
             // Need to make this smarter
             paths: paths.split(','),
@@ -60,7 +64,12 @@ function compileLessFile(res, data, lessFilePath, cssFilePath, paths) {
                 less.writeError(err);
                 return reqErr(res, err, "LESS PARSER ERROR: Line " + err.line + ', ' + err.message + '. File: ' + lessFilePath);
             }
-            writeCompiledOutputToCssFile(res, cssFilePath, tree);
+            if (compileToFile) {
+                writeCompiledOutputToCssFile(res, cssFilePath, tree);
+            }
+            //else {
+            writeCompiledOutputToStream(res, cssFilePath, tree);
+            //}
         });
 }
 
@@ -74,14 +83,37 @@ function writeCompiledOutputToCssFile (res, path, tree) {
             var css = tree.toCSS();
         } catch (err) {
             less.writeError(err);
-            return reqErr(res, err, "TREE TO CSS ERROR: " + err.message);
+            return reqErr(res, err, "TREE TO CSS ERROR: " + err.message + " path: " + path);
         }
 
         fd = fs.openSync(path, "w");
         fs.writeSync(fd, css, 0, "utf8");
+        fs.closeSync(fd);
+
+        //res.writeHead(200, {'Content-Type': 'text/plain'});
+        //res.end("LESS compilation Success! \n");
+    } catch (err) {
+        less.writeError(err);
+        return reqErr(res, err, "FILE WRITE ERROR: " + err.message);
+    }
+}
+
+/*
+ * Will write the CSS held within the tree to the response
+ */
+function writeCompiledOutputToStream (res, path, tree) {
+    try {
+
+        try {
+            var css = tree.toCSS();
+        } catch (err) {
+            less.writeError(err);
+            return reqErr(res, err, "TREE TO CSS ERROR: " + err.message + " path: " + path);
+        }
 
         res.writeHead(200, {'Content-Type': 'text/plain'});
-        res.end("LESS compilation Success! \n");
+        res.write(css);
+        res.end();
     } catch (err) {
         less.writeError(err);
         return reqErr(res, err, "FILE WRITE ERROR: " + err.message);
@@ -106,6 +138,17 @@ function getLessFilePathFromRequest (req) {
     return '';
 }
 
+function getCompileToFileFromRequest (req) {
+
+    var toFile = true;
+
+    var parsedUrl = require('url').parse(req.url, true);
+    if (parsedUrl.query.toFile) {
+        toFile = (parsedUrl.query.toFile == 'true');
+    }
+    return toFile;
+}
+
 function getPathsFromRequest (req) {
 
     var parsedUrl = require('url').parse(req.url, true);
@@ -121,7 +164,7 @@ function getPathsFromRequest (req) {
  * Terminates the response - error.
  */
 function reqErr(res, err, msg) {
-    res.writeHead(400, {'Content-Type': 'text/plain'});
+    res.writeHead(404, {'Content-Type': 'text/plain'});
     res.end("[" + new Date() + "] " + msg + "\n");
     console.log(msg);
     return;
