@@ -7,7 +7,7 @@ We use this extensively during development to compile *.less files into *.css fi
 Our basic flow is:
 
 1. While gathering .css files up to serve, notice if any of the corresponding *.less files have been changed
-2. Curl the lessc server, with the *.less file path, *.css file path, and a list of encoded include paths.
+2. Curl the  http server described in this project (which wraps lessc), with the *.less file path, *.css file path, and a list of encoded include paths.
 3. The lessc server does it's thing.
 4. The output is written into the specified .css file in the developer file system, ready to be served
 5. CSS is bundled up and served
