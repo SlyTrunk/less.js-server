@@ -6,7 +6,6 @@ var less = require('less'); // LESS:        http://lesscss.org/#-client-side-usa
 var ip   = "127.0.0.1";
 var port = 8000;
 
-
 /*
  * @brief A local HTTP sever listening for LESS file compilation requests.
  *
@@ -20,10 +19,15 @@ var port = 8000;
  * in your local file system (i.e. it should only modify).
  */
 http.createServer(function (req, res) {
-        handleCompileLessFileRequest (req, res);
-    }).listen(port, ip);
-console.log('LESS Server running at http://' + ip + ':' + port + '/');
-console.log('LESS version: "' + less.version + '"');
+    handleCompileLessFileRequest (req, res);
+}).listen(port, ip);
+
+console.log("\n====================================================================");
+console.log('| Created by Ben Dalziel: https://github.com/SlyTrunk/less.js-server');
+console.log('| LESS Server running at http://' + ip + ':' + port + '/');
+console.log('| node.js version: "' + process.version + '"');
+console.log('| LESS version: "' + less.version + '"');
+console.log('===================================================================');
 
 function handleCompileLessFileRequest (req, res) {
 
@@ -32,88 +36,52 @@ function handleCompileLessFileRequest (req, res) {
     var paths        = getPathsFromRequest(req);
     var compileToFile = (cssFilePath != '');
 
-    console.log("Request URL: " + req.url);
-    console.log("LESS File:   " + lessFilePath);
-    console.log("CSS File:    " + cssFilePath);
+    console.log("LESS File:  " + lessFilePath);
+    console.log("CSS File:   " + cssFilePath);
 
+    // First read the LESS file
     fs.readFile(lessFilePath, 'utf8', function (err, lessFileContents) {
-            if (err) {
-                less.writeError(err);
-                return reqErr(res, err, "LESS FILE READ ERROR: Line " + err.line + ', ' + err.message + '. File: ' + lessFilePath);
-            }
-            compileLessFile(res, lessFileContents, lessFilePath, cssFilePath, paths, compileToFile);
-        });
+        if (err) {
+            less.writeError(err);
+            return reqErr(res, err, "LESS FILE READ ERROR: Line " + err.line + ', ' + err.message + '. File: ' + lessFilePath);
+        }
+        compileLessFile(res, lessFileContents, lessFilePath, cssFilePath, paths, compileToFile);
+    });
 }
 
 /*
  * Delegates to less.js to compile the requested file.
  * exceptions are caught and the request is closed following apropriate messaging
  */
-function compileLessFile(res, data, lessFilePath, cssFilePath, paths, compileToFile) {
+function compileLessFile(res, lessFileContents, lessFilePath, cssFilePath, paths, compileToFile) {
 
-    //console.log("PATHS: " + paths.split(','));
-    var parser = new(less.Parser)({
-            // Need to make this smarter
-            paths: paths.split(','),
-            filename: lessFilePath
-        });
-
-    // Awaiting 1.2.1 for removal of process.exit: https://github.com/cloudhead/less.js/issues/561
-    parser.parse(data, function (err, tree) {
-            if (err) {
-                less.writeError(err);
-                return reqErr(res, err, "LESS PARSER ERROR: Line " + err.line + ', ' + err.message + '. File: ' + lessFilePath);
-            }
-            if (compileToFile) {
-                writeCompiledOutputToCssFile(res, cssFilePath, tree);
-            }
-            //else {
-            writeCompiledOutputToStream(res, cssFilePath, tree);
-            //}
-        });
+    // Compile the content of the Less file
+    less.render( lessFileContents, 
+                 { paths: paths.split(',') }, 
+                 function(compilationError, compiledCssOutput) {
+                     if (compilationError) {
+                         // Log Paths to help with debuggin - often an issue with include precedence
+                         console.log("PATHS (in order of precedence)): \n" + paths.split(',').join("\n"));
+                         less.writeError(compilationError);
+                         return reqErr(res, compilationError, "LESS PARSER ERROR: Line " + compilationError.line + ', ' + compilationError.message + '. File: ' + lessFilePath);
+                     }
+                     if (compileToFile) {
+                         writeCompiledOutputToCssFile(res, compiledCssOutput, cssFilePath);
+                     }
+                 } );
 }
 
 /*
  * Will write the CSS held within the tree to the file at the given path
  */
-function writeCompiledOutputToCssFile (res, path, tree) {
+function writeCompiledOutputToCssFile (res, css, path) {
     try {
-
-        try {
-            var css = tree.toCSS();
-        } catch (err) {
-            less.writeError(err);
-            return reqErr(res, err, "TREE TO CSS ERROR: " + err.message + " path: " + path);
-        }
-
         fd = fs.openSync(path, "w");
         fs.writeSync(fd, css, 0, "utf8");
         fs.closeSync(fd);
 
-        //res.writeHead(200, {'Content-Type': 'text/plain'});
-        //res.end("LESS compilation Success! \n");
-    } catch (err) {
-        less.writeError(err);
-        return reqErr(res, err, "FILE WRITE ERROR: " + err.message);
-    }
-}
-
-/*
- * Will write the CSS held within the tree to the response
- */
-function writeCompiledOutputToStream (res, path, tree) {
-    try {
-
-        try {
-            var css = tree.toCSS();
-        } catch (err) {
-            less.writeError(err);
-            return reqErr(res, err, "TREE TO CSS ERROR: " + err.message + " path: " + path);
-        }
-
         res.writeHead(200, {'Content-Type': 'text/plain'});
-        res.write(css);
-        res.end();
+        res.end("LESS compilation Success! \n");
     } catch (err) {
         less.writeError(err);
         return reqErr(res, err, "FILE WRITE ERROR: " + err.message);
